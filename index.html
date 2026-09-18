@@ -167,7 +167,7 @@ renderer.toneMappingExposure = 1.0;
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(FOG, FOG_D);
 const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 4000);
-camera.position.set(62, 20, 78);
+camera.position.set(62, 20, 78).multiplyScalar(isNarrow() ? 1.35 : 1);
 const controls = new OrbitControls(camera, canvas);
 controls.target.set(0, 23, 0);
 controls.enableDamping = true;
@@ -805,7 +805,7 @@ function setCam(key){
   camBtns.forEach((b, i) => b.classList.toggle('on', CAMS[i][1] === key));
   controls.autoRotate = false;
   const H = P.H, az = Math.atan2(camera.position.z, camera.position.x);
-  const dist = H*1.75 + P.D*0.8;
+  const dist = (H*1.75 + P.D*0.8)*(isNarrow() ? 1.35 : 1);
   if(key === 'wide') flyTo(new THREE.Vector3(Math.cos(az)*dist, H*0.36, Math.sin(az)*dist), new THREE.Vector3(0, H*0.46, 0));
   if(key === 'eye') flyTo(new THREE.Vector3(Math.cos(az)*(P.D/2 + 30), 1.7, Math.sin(az)*(P.D/2 + 30)), new THREE.Vector3(0, H*0.45, 0));
   if(key === 'orbit'){
