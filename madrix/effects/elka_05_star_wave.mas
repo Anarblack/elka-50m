@@ -1,0 +1,48 @@
+@scriptname="Elka 50m - wave from the star";
+@author="ChuDo / elka-50m";
+@version="1.0";
+@description="Colored rings running down from the star. For the 2D cylinder patch elka50_madrix_2d_cylinder.csv: X = around the tree (front in the middle), Y = height (0 = top).";
+
+// ---- settings ----
+const float SPEED  = 1.0;   // 1.0 = same tempo as the web model
+const float BRIGHT = 1.0;   // 0..1 master for this effect
+const float TREE_H = 50.0;  // tree height with star, m
+const float TREE_R = 9.0;   // radius of the lowest tier, m
+
+color col;
+int W;
+int H;
+
+float flr(float x) { float m = fmod(x, 1.0); float r = x - m; if(m < 0.0) r = r - 1.0; return r; }
+float fract(float x) { return x - flr(x); }
+float h11(float n) { return fract(sin(n*12.9898)*43758.5453); }
+float sstep(float a, float b, float x) { float t = fclamp((x - a)/(b - a), 0.0, 1.0); return t*t*(3.0 - 2.0*t); }
+void put(int x, int y, float r, float g, float b)
+{
+  col.r = round(fclamp(r*BRIGHT, 0.0, 1.0)*255.0);
+  col.g = round(fclamp(g*BRIGHT, 0.0, 1.0)*255.0);
+  col.b = round(fclamp(b*BRIGHT, 0.0, 1.0)*255.0);
+  SetPixel(col, x, y);
+}
+float now() { float ms = GetEffectTime(); return ms/1000.0*SPEED; }
+
+void InitEffect() { W = GetMatrixWidth(); H = GetMatrixHeight(); col = BLACK; }
+void MatrixSizeChanged() { InitEffect(); }
+
+void RenderEffect()
+{
+  float t = now();
+  int x; int y;
+  for(y = 0; y < H; y++) {
+    float d = (y + 0.5)/H*TREE_H;
+    float w = d/10.0 - t*0.45;
+    float f = fract(w);
+    float n = w - f;
+    float ring = sstep(0.0, 0.08, f)*sstep(0.45, 0.12, f)*1.4;
+    float k = h11(n + 7.0);
+    float r = 1.0; float g = 0.15; float b = 0.5;
+    if(k < 0.33) { r = 1.0; g = 0.55; b = 0.1; }
+    else if(k < 0.66) { r = 0.2; g = 0.7; b = 1.0; }
+    for(x = 0; x < W; x++) put(x, y, 0.03 + r*ring, 0.02 + g*ring, 0.05 + b*ring);
+  }
+}

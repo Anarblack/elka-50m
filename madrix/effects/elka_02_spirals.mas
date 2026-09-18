@@ -1,0 +1,46 @@
+@scriptname="Elka 50m - spirals";
+@author="ChuDo / elka-50m";
+@version="1.0";
+@description="Two rotating helical ribbons, red and warm gold. For the 2D cylinder patch elka50_madrix_2d_cylinder.csv: X = around the tree (front in the middle), Y = height (0 = top).";
+
+// ---- settings ----
+const float SPEED  = 1.0;   // 1.0 = same tempo as the web model
+const float BRIGHT = 1.0;   // 0..1 master for this effect
+const float TREE_H = 50.0;  // tree height with star, m
+const float TREE_R = 9.0;   // radius of the lowest tier, m
+
+color col;
+int W;
+int H;
+
+float flr(float x) { float m = fmod(x, 1.0); float r = x - m; if(m < 0.0) r = r - 1.0; return r; }
+float fract(float x) { return x - flr(x); }
+float h11(float n) { return fract(sin(n*12.9898)*43758.5453); }
+float sstep(float a, float b, float x) { float t = fclamp((x - a)/(b - a), 0.0, 1.0); return t*t*(3.0 - 2.0*t); }
+void put(int x, int y, float r, float g, float b)
+{
+  col.r = round(fclamp(r*BRIGHT, 0.0, 1.0)*255.0);
+  col.g = round(fclamp(g*BRIGHT, 0.0, 1.0)*255.0);
+  col.b = round(fclamp(b*BRIGHT, 0.0, 1.0)*255.0);
+  SetPixel(col, x, y);
+}
+float now() { float ms = GetEffectTime(); return ms/1000.0*SPEED; }
+
+void InitEffect() { W = GetMatrixWidth(); H = GetMatrixHeight(); col = BLACK; }
+void MatrixSizeChanged() { InitEffect(); }
+
+void RenderEffect()
+{
+  float t = now();
+  int x; int y;
+  for(y = 0; y < H; y++) {
+    float hn = 1.0 - (y + 0.5)/H;
+    for(x = 0; x < W; x++) {
+      float xn = (x + 0.5)/W;
+      float f = fract(xn*2.0 + hn*3.5 - t*0.3);
+      float red = sstep(0.0, 0.03, f)*sstep(0.5, 0.47, f);
+      float gold = 1.0 - red;
+      put(x, y, 1.0*red + 1.0*gold, 0.04*red + 0.62*gold, 0.02*red + 0.22*gold);
+    }
+  }
+}

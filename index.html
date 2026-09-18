@@ -114,6 +114,7 @@ button.on{background:var(--gold);border-color:var(--gold);color:#1a1204;font-wei
       <div class="checks">
         <label><input type="checkbox" id="foliage" checked> Хвоя</label>
         <label><input type="checkbox" id="wires"> Провода нитей</label>
+        <label><input type="checkbox" id="ports"> Цвет по портам</label>
       </div>
     </section>
 
@@ -132,11 +133,195 @@ button.on{background:var(--gold);border-color:var(--gold);color:#1a1204;font-wei
       <h2>Расчёт оборудования</h2>
       <div class="calc" id="calc"></div>
       <p class="note">Допущения: пиксель 12 мм, 12 В, ≈0,3 Вт на полном белом; рабочая нагрузка ≈35% от максимума.
-        Юниверс DMX = 170 RGB-пикселей. Порт WS2811 — до 680 пикселей при 40 кадр/с. Контроллер Art-Net/sACN на 16 портов.
+        Юниверс DMX = 170 RGB-пикселей. Порт WS2811 — до 680 пикселей при 40 кадр/с, ветка не делится между портами. Контроллер Art-Net/sACN на 16 портов.
         Блок питания 12 В 400 Вт с загрузкой не выше 80%. Пиксели ставятся только на внешнюю часть веток — внутрь кроны их не видно.</p>
     </section>
   </div>
 </aside>
+
+<script id="treegen">
+// Генератор ели без зависимостей. Один источник координат для 3D-модели и для экспорта в MADRIX:
+// madrix/export.mjs вырезает этот блок из index.html и исполняет его в Node.
+var TREE_STAR_R = 1.8;
+
+function mulberry(seed){
+  return function(){
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0)/4294967296;
+  };
+}
+
+function generateTree(P){
+  // Случайные потоки раздельные: ярусы, у каждой ветки свой, у хвои свой. Так расхождение в последнем знаке
+  // между браузерами (или браузером и Node) не сдвигает всю ёлку, а качество хвои не меняет раскладку пикселей.
+  const Rt = mulberry(7);
+  let R = Rt, Rf = mulberry(13);
+  const STAR_R = TREE_STAR_R;
+  const H = P.H, R0 = P.D/2, hMin = 2.0, hTop = H - 2*STAR_R + 0.5;
+  const dense = P.quality === 'low' ? 1.8 : 1;
+  const prof = y => y < hMin ? 0 : R0*Math.pow(Math.max(0, 1 - (y - hMin)/(hTop - hMin)), 0.92)*(0.86 + 0.14*Math.min(1, (y - hMin)/4));
+
+  const UP = [0, 1, 0];
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const len = a => Math.sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
+  const norm = a => { const l = len(a) || 1; return [a[0]/l, a[1]/l, a[2]/l]; };
+  const cross = (a, b) => [a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2], a[0]*b[1] - a[1]*b[0]];
+  const lerp = (a, b, t) => [a[0] + (b[0] - a[0])*t, a[1] + (b[1] - a[1])*t, a[2] + (b[2] - a[2])*t];
+  const axpy = (a, d, s) => [a[0] + d[0]*s, a[1] + d[1]*s, a[2] + d[2]*s];
+  const rotAround = (v, k, t) => {            // поворот v вокруг единичной оси k (Родригес)
+    const c = Math.cos(t), s = Math.sin(t), kv = cross(k, v), d = k[0]*v[0] + k[1]*v[1] + k[2]*v[2];
+    return [v[0]*c + kv[0]*s + k[0]*d*(1 - c), v[1]*c + kv[1]*s + k[1]*d*(1 - c), v[2]*c + kv[2]*s + k[2]*d*(1 - c)];
+  };
+
+  const px = [], rnd = [], kind = [], owner = [], wires = [];
+  const cP = [], cD = [], cS = [], cZ = [], cG = [], cR = [];
+  const branches = [];
+  let tiers = 0;
+
+  const glowAt = dt => { const g = Math.min(1, Math.max(0, 1.15 - dt/P.zone)); return 0.06 + 0.94*Math.pow(g, 1.3); };
+  function card(p, dir, l, w, tilt, glow){
+    let side = norm(cross(UP, dir));
+    if(side[0]*side[0] + side[1]*side[1] + side[2]*side[2] < 0.1) side = [1, 0, 0];
+    side = rotAround(side, dir, tilt);
+    cP.push(p[0], p[1], p[2]); cD.push(dir[0], dir[1], dir[2]); cS.push(side[0], side[1], side[2]);
+    cZ.push(l, w); cG.push(glow); cR.push(Rf());
+  }
+  // пиксели вдоль полилинии с шагом pitch; k — тип (0 ветка, 1 веточка, 2 звезда), bid — номер ветки
+  function lay(pts, from, k, bid){
+    let acc = from, prev = null;
+    for(let i = 1; i < pts.length; i++){
+      const a = pts[i - 1], b = pts[i], seg = len(sub(b, a));
+      while(acc <= seg + 1e-9){
+        const t = lerp(a, b, seg > 0 ? acc/seg : 0);
+        const q = [t[0], t[1] - 0.03, t[2]];
+        px.push(q[0], q[1], q[2]); rnd.push(R()); kind.push(k); owner.push(bid);
+        if(prev) wires.push(prev[0], prev[1], prev[2], q[0], q[1], q[2]);
+        prev = q; acc += P.pitch;
+      }
+      acc -= seg;
+    }
+  }
+
+  for(let y = hMin; y < hTop - 0.5; y += P.tier*(0.9 + 0.2*Rt())){
+    const L = prof(y);
+    if(L < 0.3) continue;
+    const n = Math.max(4, Math.round(2*Math.PI*L/1.05));
+    const off = tiers*2.39996;
+    const k = 0.55 - 0.35*(y - hMin)/(hTop - hMin);
+    const trunkR = 0.25 + 0.45*(1 - (y - hMin)/(hTop - hMin));
+    const sc = 0.55 + 0.45*Math.min(1, L/4);
+    for(let b = 0; b < n; b++){
+      const bid = branches.length, start = rnd.length;
+      R = mulberry(100003*(tiers + 1) + 7919*b); Rf = mulberry(100003*(tiers + 1) + 7919*b + 31);
+      const th = off + (b + (R() - 0.5)*0.5)/n*2*Math.PI;
+      const Lb = L*(0.85 + 0.25*R()), y0 = y + (R() - 0.5)*0.9*P.tier, sway = (R() - 0.5)*0.35, kb = k*(0.7 + 0.6*R());
+      const N = Math.max(4, Math.ceil((Lb - trunkR)/0.25));
+      const pts = [];
+      for(let i = 0; i <= N; i++){
+        const s = i/N, r = trunkR + (Lb - trunkR)*s, ang = th + sway*s*s;
+        pts.push([Math.cos(ang)*r, y0 + Lb*kb*(0.15*s - 1.3*s*s + 1.0*s*s*s), Math.sin(ang)*r]);
+      }
+      const cum = [0];
+      for(let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + len(sub(pts[i], pts[i - 1])));
+      const Lt = cum[cum.length - 1];
+      const at = d => {
+        let i = 1; while(i < cum.length - 1 && cum[i] < d) i++;
+        const f = (d - cum[i - 1])/(cum[i] - cum[i - 1]);
+        return { p: lerp(pts[i - 1], pts[i], Math.min(1, Math.max(0, f))), d: norm(sub(pts[i], pts[i - 1])) };
+      };
+
+      // хвоя главной ветки
+      for(let s = 0.3; s < Lt; s += 0.42*dense){
+        const { p, d } = at(s), g = glowAt(Lt - s);
+        card(p, d, (1.1 + 0.4*Rf())*sc, 0.62*sc, (Rf() - 0.6)*0.8, g);
+        if(Rf() < 0.45) card(p, d, (0.9 + 0.3*Rf())*sc, 0.5*sc, -0.9 - Rf()*0.5, g);
+      }
+      // боковые веточки поочерёдно
+      let sgn = 1;
+      for(let s = 0.6; s < Lt - 0.15; s += 0.42*(0.85 + 0.3*R())){
+        const { p, d } = at(s), dt = Lt - s;
+        const lb = Math.min(2.0, 0.25 + 0.45*dt)*(0.8 + 0.4*R())*Math.min(1, L/3 + 0.35);
+        const side = norm(cross(UP, d)).map(v => v*sgn);
+        const bd = norm(axpy(axpy(d.map(v => v*0.75), side, 0.65), UP, R()*0.15 - 0.05));
+        const bp = [];
+        for(let j = 0; j <= 4; j++){ const t = j/4; bp.push(axpy(axpy(p, bd, lb*t), UP, -0.12*lb*t*t)); }
+        for(let j = 0; j < 4; j++){
+          if(dense > 1 && Rf() < 0.45) continue;
+          card(bp[j], norm(sub(bp[j + 1], bp[j])), lb/4 + 0.45*sc, 0.4*sc, (Rf() - 0.6)*1.0, glowAt(dt - lb*j/4));
+        }
+        if(dt < P.zone) lay(bp, P.pitch*0.5, 1, bid);
+        sgn = -sgn;
+      }
+      // пиксели на внешней части главной ветки
+      const from = Math.max(0.4, Lt - P.zone);
+      const outer = [at(from).p];
+      for(let i = 0; i < pts.length; i++) if(cum[i] > from) outer.push(pts[i]);
+      lay(outer, 0, 0, bid);
+
+      branches.push({ id: bid, tier: tiers, th, y, tip: pts[pts.length - 1], start, count: rnd.length - start, star: false });
+    }
+    tiers++;
+  }
+  const treePixels = rnd.length, treeBranches = branches.length;
+
+  // звезда: две скрещённые пятиконечные, контур + внутренние контуры; каждая — отдельная «ветка» для патча
+  const sc0 = [0, H - STAR_R, 0];
+  const starPts = [];
+  for(let i = 0; i <= 10; i++){
+    const a = Math.PI/2 + i/10*2*Math.PI, r = i%2 ? STAR_R*0.42 : STAR_R;
+    starPts.push([Math.cos(a)*r, Math.sin(a)*r]);
+  }
+  R = mulberry(424242);
+  for(const rot of [0, Math.PI/2]){
+    const bid = branches.length, start = rnd.length;
+    for(const k of [1, 0.72, 0.45, 0.2]){
+      lay(starPts.map(([x, y]) => { const v = rotAround([x*k, y*k, 0], UP, rot); return [v[0] + sc0[0], v[1] + sc0[1], v[2] + sc0[2]]; }), 0, 2, bid);
+    }
+    branches.push({ id: bid, tier: -1, th: rot, y: sc0[1], tip: sc0, start, count: rnd.length - start, star: true });
+  }
+
+  return {
+    H, R0, hMin, hTop, starR: STAR_R, prof, starPts, starCenter: sc0,
+    px: new Float32Array(px), rnd: new Float32Array(rnd), kind: new Uint8Array(kind), owner: new Int32Array(owner),
+    wires: new Float32Array(wires), branches,
+    cards: { pos: cP, dir: cD, side: cS, size: cZ, glow: cG, rnd: cR },
+    stats: { pixels: rnd.length, treePixels, starPixels: rnd.length - treePixels, branches: treeBranches, tiers, cards: cR.length, cable: rnd.length*P.pitch },
+  };
+}
+
+// Раскладка по портам контроллера: ветка целиком в одном порту (если влезает), порт = 4 юниверса по 170 RGB-пикселей.
+function planPatch(gen, opts){
+  const o = Object.assign({ perPort: 680, perUni: 170, unisPerPort: 4, portsPerCtrl: 16 }, opts || {});
+  const n = gen.rnd.length;
+  const port = new Int32Array(n), uni = new Int32Array(n), ch = new Int32Array(n);
+  const ports = [];
+  let cur = null;
+  const open = star => { cur = { index: ports.length, count: 0, star, tierMin: Infinity, tierMax: -Infinity, branchMin: Infinity, branchMax: -Infinity }; ports.push(cur); };
+  for(const b of gen.branches){
+    if(!b.count) continue;
+    if(!cur || cur.star !== b.star || cur.count + b.count > o.perPort) open(b.star);
+    for(let i = 0; i < b.count; i++){
+      if(cur.count >= o.perPort) open(b.star);   // ветка длиннее порта — продолжается в следующем
+      const k = cur.count++, id = b.start + i;
+      port[id] = cur.index;
+      uni[id] = cur.index*o.unisPerPort + Math.floor(k/o.perUni) + 1;
+      ch[id] = (k % o.perUni)*3 + 1;
+      cur.tierMin = Math.min(cur.tierMin, b.tier); cur.tierMax = Math.max(cur.tierMax, b.tier);
+      cur.branchMin = Math.min(cur.branchMin, b.id); cur.branchMax = Math.max(cur.branchMax, b.id);
+    }
+  }
+  for(const p of ports){
+    p.ctrl = Math.floor(p.index/o.portsPerCtrl) + 1;
+    p.portInCtrl = p.index % o.portsPerCtrl + 1;
+    p.uniFirst = p.index*o.unisPerPort + 1;
+    p.uniLast = p.uniFirst + Math.ceil(p.count/o.perUni) - 1;
+  }
+  const universes = ports.reduce((s, p) => s + Math.ceil(p.count/o.perUni), 0);
+  return { port, uni, ch, ports, universes, controllers: Math.ceil(ports.length/o.portsPerCtrl), opts: o };
+}
+</script>
 
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }
@@ -155,7 +340,7 @@ const isNarrow = () => innerWidth <= 760;
 
 // ---------- параметры ----------
 const P = { H:50, D:18, tier:1.4, pitch:0.15, zone:3, quality: isNarrow() ? 'low' : 'high' };
-const STAR_R = 1.8;
+const STAR_R = TREE_STAR_R;
 const FOG = new THREE.Color(0x070b16), FOG_D = 0.0032;
 
 // ---------- рендерер ----------
@@ -285,11 +470,11 @@ vec3 fxMix(vec3 p, float rnd, float fol){
 
 // ---------- материалы ----------
 const pixelMat = new THREE.ShaderMaterial({
-  uniforms: { ...U, uSize:{value:0.075}, uScale:{value:800} },
+  uniforms: { ...U, uSize:{value:0.075}, uScale:{value:800}, uPortView:{value:0} },
   transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
   vertexShader: FX_GLSL + /* glsl */`
-    uniform float uSize, uScale;
-    attribute float aRnd; attribute float aStar;
+    uniform float uSize, uScale, uPortView;
+    attribute float aRnd; attribute float aStar; attribute float aPort;
     varying vec3 vCol; varying float vK;
     void main(){
       vec3 c = fxMix(position, aRnd, 0.0);
@@ -297,6 +482,7 @@ const pixelMat = new THREE.ShaderMaterial({
         vec3 g = vec3(1.0, 0.74, 0.34)*(1.1 + 0.5*sin(uTime*2.0 + aRnd*40.0));
         c = mix(c, g*uBright, 0.7);
       }
+      if(uPortView > 0.5) c = hsv(fract(aPort*0.618034 + 0.12), 0.8, 1.0)*uBright*0.9;
       vec4 mv = modelViewMatrix*vec4(position, 1.0);
       // сдвиг к камере: пиксель висит поверх собственной ветки, но прячется за кроной
       mv.xyz *= 1.0 - min(0.15, 0.5*length(mv.xyz))/length(mv.xyz);
@@ -419,15 +605,6 @@ const groundMat = new THREE.ShaderMaterial({
 });
 
 // ---------- окружение: небо с Ала-Тоо, звёзды, площадь, город, люди ----------
-function mulberry(seed){
-  return function(){
-    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
-    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0)/4294967296;
-  };
-}
-
 const sky = new THREE.Mesh(new THREE.SphereGeometry(1800, 48, 24), new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite:false, fog:false,
   vertexShader: `varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position, 1.0); }`,
@@ -547,179 +724,61 @@ function buildFence(R0){
 const tree = new THREE.Group(); scene.add(tree);
 let pixelsObj = null, wiresObj = null, foliageObj = null, coreObj = null, starFrame = null;
 let tips = [];           // кончики веток: для камеры «макро»
-let stats = {};
+let stats = {}, gen = null, patch = null;
 
 function build(){
-  const R = mulberry(7), Rf = mulberry(13);   // Rf — только хвоя, чтобы качество не меняло раскладку пикселей
-  const H = P.H, R0 = P.D/2, hMin = 2.0, hTop = H - 2*STAR_R + 0.5;
-  const dense = P.quality === 'high' ? 1 : 1.8;
+  gen = generateTree(P);
+  patch = planPatch(gen);
+  const { H, R0, hMin, hTop } = gen;
   U.uH.value = H; U.uR0.value = R0; U.uHmin.value = hMin; U.uHtop.value = hTop;
-  const prof = y => y < hMin ? 0 : R0*Math.pow(Math.max(0, 1 - (y - hMin)/(hTop - hMin)), 0.92)*(0.86 + 0.14*Math.min(1, (y - hMin)/4));
+  tips = gen.branches.filter(b => !b.star).map(b => ({ p: new THREE.Vector3(...b.tip), th: b.th, y: b.y }));
 
-  const px = [], pr = [], ps = [], wires = [];
-  const cP = [], cD = [], cS = [], cZ = [], cG = [], cR = [];
-  tips = [];
-  let branches = 0, tiers = 0;
-  const up = new THREE.Vector3(0, 1, 0), tmp = new THREE.Vector3(), side = new THREE.Vector3();
-
-  const glowAt = dt => { const g = Math.min(1, Math.max(0, 1.15 - dt/P.zone)); return 0.06 + 0.94*Math.pow(g, 1.3); };
-  function card(p, dir, len, wid, tilt, glow){
-    side.crossVectors(up, dir).normalize();
-    if(side.lengthSq() < 0.1) side.set(1, 0, 0);
-    side.applyAxisAngle(dir, tilt);
-    cP.push(p.x, p.y, p.z); cD.push(dir.x, dir.y, dir.z); cS.push(side.x, side.y, side.z);
-    cZ.push(len, wid); cG.push(glow); cR.push(Rf());
-  }
-  // пиксели вдоль полилинии с шагом pitch, по одной нити на полилинию
-  function lay(pts, from){
-    let acc = from, prev = null;
-    for(let i = 1; i < pts.length; i++){
-      const a = pts[i - 1], b = pts[i], seg = a.distanceTo(b);
-      while(acc <= seg){
-        tmp.lerpVectors(a, b, acc/seg);
-        const q = [tmp.x, tmp.y - 0.03, tmp.z];
-        px.push(...q); pr.push(R()); ps.push(0);
-        if(prev) wires.push(...prev, ...q);
-        prev = q; acc += P.pitch;
-      }
-      acc -= seg;
-    }
-  }
-
-  for(let y = hMin; y < hTop - 0.5; y += P.tier*(0.9 + 0.2*R())){
-    const L = prof(y);
-    if(L < 0.3) continue;
-    const n = Math.max(4, Math.round(2*Math.PI*L/1.05));
-    const off = tiers*2.39996;
-    const k = 0.55 - 0.35*(y - hMin)/(hTop - hMin);
-    const trunkR = 0.25 + 0.45*(1 - (y - hMin)/(hTop - hMin));
-    const sc = 0.55 + 0.45*Math.min(1, L/4);
-    for(let b = 0; b < n; b++){
-      const th = off + (b + (R() - 0.5)*0.5)/n*2*Math.PI;
-      const Lb = L*(0.85 + 0.25*R()), y0 = y + (R() - 0.5)*0.9*P.tier, sway = (R() - 0.5)*0.35, kb = k*(0.7 + 0.6*R());
-      const N = Math.max(4, Math.ceil((Lb - trunkR)/0.25));
-      const pts = [];
-      for(let i = 0; i <= N; i++){
-        const s = i/N, r = trunkR + (Lb - trunkR)*s, ang = th + sway*s*s;
-        pts.push(new THREE.Vector3(Math.cos(ang)*r, y0 + Lb*kb*(0.15*s - 1.3*s*s + 1.0*s*s*s), Math.sin(ang)*r));
-      }
-      const cum = [0];
-      for(let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + pts[i].distanceTo(pts[i - 1]));
-      const Lt = cum[cum.length - 1];
-      const at = (d, out, dir) => {
-        let i = 1; while(i < cum.length - 1 && cum[i] < d) i++;
-        const f = (d - cum[i - 1])/(cum[i] - cum[i - 1]);
-        out.lerpVectors(pts[i - 1], pts[i], Math.min(1, Math.max(0, f)));
-        if(dir) dir.subVectors(pts[i], pts[i - 1]).normalize();
-      };
-
-      // хвоя главной ветки
-      const p = new THREE.Vector3(), d = new THREE.Vector3();
-      for(let s = 0.3; s < Lt; s += 0.42*dense){
-        at(s, p, d);
-        const g = glowAt(Lt - s);
-        card(p, d, (1.1 + 0.4*Rf())*sc, 0.62*sc, (Rf() - 0.6)*0.8, g);
-        if(Rf() < 0.45) card(p, d, (0.9 + 0.3*Rf())*sc, 0.5*sc, -0.9 - Rf()*0.5, g);
-      }
-      // боковые веточки поочерёдно
-      let sgn = 1;
-      for(let s = 0.6; s < Lt - 0.15; s += 0.42*(0.85 + 0.3*R())){
-        at(s, p, d);
-        const dt = Lt - s;
-        const lb = Math.min(2.0, 0.25 + 0.45*dt)*(0.8 + 0.4*R())*Math.min(1, L/3 + 0.35);
-        side.crossVectors(up, d).normalize().multiplyScalar(sgn);
-        const bd = new THREE.Vector3().copy(d).multiplyScalar(0.75).addScaledVector(side, 0.65).addScaledVector(up, R()*0.15 - 0.05).normalize();
-        const bp = [];
-        for(let j = 0; j <= 4; j++){
-          const t = j/4;
-          bp.push(new THREE.Vector3().copy(p).addScaledVector(bd, lb*t).addScaledVector(up, -0.12*lb*t*t));
-        }
-        const bdir = new THREE.Vector3();
-        for(let j = 0; j < 4; j++){
-          if(dense > 1 && Rf() < 0.45) continue;
-          bdir.subVectors(bp[j + 1], bp[j]).normalize();
-          card(bp[j], bdir, lb/4 + 0.45*sc, 0.4*sc, (Rf() - 0.6)*1.0, glowAt(dt - lb*j/4));
-        }
-        if(dt < P.zone) lay(bp, P.pitch*0.5);
-        sgn = -sgn;
-      }
-      // пиксели на внешней части главной ветки
-      const from = Math.max(0.4, Lt - P.zone);
-      at(from, p, d);
-      const outer = [p.clone()];
-      for(let i = 0; i < pts.length; i++) if(cum[i] > from) outer.push(pts[i]);
-      lay(outer, 0);
-
-      tips.push({ p: pts[pts.length - 1].clone(), th, y });
-      branches++;
-    }
-    tiers++;
-  }
-  const treePixels = pr.length;
-
-  // звезда: две скрещённые пятиконечные, контур + внутренние контуры
-  const sc0 = new THREE.Vector3(0, H - STAR_R, 0);
-  const starShape = new THREE.Shape();
-  const starPts = [];
-  for(let i = 0; i <= 10; i++){
-    const a = Math.PI/2 + i/10*2*Math.PI, r = i%2 ? STAR_R*0.42 : STAR_R;
-    starPts.push([Math.cos(a)*r, Math.sin(a)*r]);
-  }
-  starPts.forEach(([x, y], i) => i ? starShape.lineTo(x, y) : starShape.moveTo(x, y));
-  for(const rot of [0, Math.PI/2]){
-    for(const k of [1, 0.72, 0.45, 0.2]){
-      const poly = starPts.map(([x, y]) => new THREE.Vector3(x*k, y*k, 0).applyAxisAngle(up, rot).add(sc0));
-      const start = pr.length;
-      lay(poly, 0);
-      for(let i = start; i < pr.length; i++) ps[i] = 1;
-    }
-  }
-  const starPixels = pr.length - treePixels;
-
-  // --- геометрия в сцену ---
   for(const o of [pixelsObj, wiresObj, foliageObj, coreObj, starFrame]) if(o){ tree.remove(o); o.traverse(c => c.geometry?.dispose()); }
 
+  const n = gen.rnd.length, aStar = new Float32Array(n), aPort = new Float32Array(n);
+  for(let i = 0; i < n; i++){ aStar[i] = gen.kind[i] === 2 ? 1 : 0; aPort[i] = patch.port[i]; }
   const pg = new THREE.BufferGeometry();
-  pg.setAttribute('position', new THREE.Float32BufferAttribute(px, 3));
-  pg.setAttribute('aRnd', new THREE.Float32BufferAttribute(pr, 1));
-  pg.setAttribute('aStar', new THREE.Float32BufferAttribute(ps, 1));
+  pg.setAttribute('position', new THREE.BufferAttribute(gen.px, 3));
+  pg.setAttribute('aRnd', new THREE.BufferAttribute(gen.rnd, 1));
+  pg.setAttribute('aStar', new THREE.BufferAttribute(aStar, 1));
+  pg.setAttribute('aPort', new THREE.BufferAttribute(aPort, 1));
   pixelsObj = new THREE.Points(pg, pixelMat); pixelsObj.frustumCulled = false; pixelsObj.renderOrder = 2;
 
-  const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(wires, 3));
+  const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.BufferAttribute(gen.wires, 3));
   wiresObj = new THREE.LineSegments(wg, wireMat); wiresObj.visible = $('wires').checked;
 
-  const plane = new THREE.PlaneGeometry(1, 1);
+  const c = gen.cards, plane = new THREE.PlaneGeometry(1, 1);
   const fg = new THREE.InstancedBufferGeometry();
   fg.index = plane.index; fg.setAttribute('position', plane.getAttribute('position')); fg.setAttribute('uv', plane.getAttribute('uv'));
-  fg.setAttribute('iPos', new THREE.InstancedBufferAttribute(new Float32Array(cP), 3));
-  fg.setAttribute('iDir', new THREE.InstancedBufferAttribute(new Float32Array(cD), 3));
-  fg.setAttribute('iSide', new THREE.InstancedBufferAttribute(new Float32Array(cS), 3));
-  fg.setAttribute('iSize', new THREE.InstancedBufferAttribute(new Float32Array(cZ), 2));
-  fg.setAttribute('iGlow', new THREE.InstancedBufferAttribute(new Float32Array(cG), 1));
-  fg.setAttribute('iRnd', new THREE.InstancedBufferAttribute(new Float32Array(cR), 1));
-  fg.instanceCount = cR.length;
+  fg.setAttribute('iPos', new THREE.InstancedBufferAttribute(new Float32Array(c.pos), 3));
+  fg.setAttribute('iDir', new THREE.InstancedBufferAttribute(new Float32Array(c.dir), 3));
+  fg.setAttribute('iSide', new THREE.InstancedBufferAttribute(new Float32Array(c.side), 3));
+  fg.setAttribute('iSize', new THREE.InstancedBufferAttribute(new Float32Array(c.size), 2));
+  fg.setAttribute('iGlow', new THREE.InstancedBufferAttribute(new Float32Array(c.glow), 1));
+  fg.setAttribute('iRnd', new THREE.InstancedBufferAttribute(new Float32Array(c.rnd), 1));
+  fg.instanceCount = c.rnd.length;
   foliageObj = new THREE.Mesh(fg, foliageMat); foliageObj.frustumCulled = false;
 
   const lathe = [];
-  for(let i = 0; i <= 60; i++){ const y = hMin - 0.4 + (hTop - hMin + 0.4)*i/60; lathe.push(new THREE.Vector2(Math.max(0.05, prof(y)*0.72), y)); }
+  for(let i = 0; i <= 60; i++){ const y = hMin - 0.4 + (hTop - hMin + 0.4)*i/60; lathe.push(new THREE.Vector2(Math.max(0.05, gen.prof(y)*0.72), y)); }
   lathe.push(new THREE.Vector2(0, hTop + 0.3));
   coreObj = new THREE.Mesh(new THREE.LatheGeometry(lathe, 48), coreMat);
   const trunk = new THREE.CylinderGeometry(0.25, 0.7, hTop, 10).translate(0, hTop/2, 0);
   coreObj.add(new THREE.Mesh(trunk, coreMat));
 
+  const starShape = new THREE.Shape();
+  gen.starPts.forEach(([x, y], i) => i ? starShape.lineTo(x, y) : starShape.moveTo(x, y));
   const sg = new THREE.ExtrudeGeometry(starShape, { depth:0.12, bevelEnabled:false }).translate(0, 0, -0.06);
   starFrame = new THREE.Group();
   for(const rot of [0, Math.PI/2]){
     const m = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ color:0x2a1d08 }));
-    m.rotation.y = rot; m.position.copy(sc0); starFrame.add(m);
+    m.rotation.y = rot; m.position.set(...gen.starCenter); starFrame.add(m);
   }
 
-  const showFol = $('foliage').checked;
-  foliageObj.visible = coreObj.visible = showFol;
+  foliageObj.visible = coreObj.visible = $('foliage').checked;
   tree.add(coreObj, foliageObj, wiresObj, pixelsObj, starFrame);
   buildFence(R0);
-
-  stats = { pixels: pr.length, treePixels, starPixels, branches, tiers, cards: cR.length, cable: pr.length*P.pitch };
+  stats = gen.stats;
 }
 
 // ---------- надпись: canvas → текстура для цилиндрической проекции ----------
@@ -838,7 +897,7 @@ const nf = new Intl.NumberFormat('ru-RU', { maximumFractionDigits:0 });
 const nf1 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits:1 });
 function renderCalc(){
   const n = stats.pixels;
-  const uni = Math.ceil(n/170), ports = Math.ceil(n/680), ctrl = Math.ceil(ports/16);
+  const uni = patch.universes, ports = patch.ports.length, ctrl = patch.controllers;
   const pMax = n*0.3/1000, pWork = pMax*0.35, psu = Math.ceil(n*0.3/320);
   const cable = stats.cable >= 1000 ? nf1.format(stats.cable/1000) + ' км' : nf.format(stats.cable) + ' м';
   const rows = [
@@ -886,6 +945,7 @@ $('bright').addEventListener('input', e => { U.uBright.value = +e.target.value; 
 $('text').addEventListener('input', drawText);
 $('foliage').addEventListener('change', e => { foliageObj.visible = coreObj.visible = e.target.checked; });
 $('wires').addEventListener('change', e => { wiresObj.visible = e.target.checked; });
+$('ports').addEventListener('change', e => { pixelMat.uniforms.uPortView.value = e.target.checked ? 1 : 0; });
 const panel = $('panel');
 $('toggle').addEventListener('click', () => {
   const c = panel.classList.toggle('collapsed');
