@@ -1,0 +1,945 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<title>Ёлка 50 м</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Manrope:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  color-scheme: dark;
+  --ink:#05080f;
+  --panel:rgba(10,15,26,.84);
+  --panel-solid:#0b111d;
+  --line:#1c2638;
+  --line-2:#2a3750;
+  --text:#e8edf4;
+  --muted:#8994a8;
+  --gold:#f2c15a;
+  --gold-dim:#8a6a26;
+  --ice:#9ccff5;
+  --f-display:"Unbounded","Manrope",system-ui,sans-serif;
+  --f-body:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+html,body{height:100%;margin:0;background:var(--ink);color:var(--text);font-family:var(--f-body);font-size:14px;overflow:hidden}
+#view{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.hud{position:fixed;left:16px;top:calc(16px + env(safe-area-inset-top,0px));pointer-events:none;max-width:calc(100% - 32px)}
+.hud h1{font-family:var(--f-display);font-weight:700;font-size:30px;letter-spacing:-.01em;margin:0;line-height:1.05;text-wrap:balance}
+.hud h1 span{color:var(--gold)}
+.hud .sub{margin-top:6px;color:var(--muted);font-size:13px}
+.hud .big{margin-top:14px;display:flex;gap:18px;flex-wrap:wrap;font-family:var(--f-mono)}
+.hud .big div{display:flex;flex-direction:column}
+.hud .big b{font-size:22px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+.hud .big small{font-family:var(--f-body);font-size:11px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.hint{position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));color:var(--muted);font-size:12px;pointer-events:none}
+
+.panel{position:fixed;right:16px;top:calc(16px + env(safe-area-inset-top,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:340px;
+  background:var(--panel);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;overflow:hidden}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line)}
+.panel-head span{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+#toggle{display:none}
+.panel-body{overflow-y:auto;padding:4px 16px 16px;display:flex;flex-direction:column;gap:18px}
+.sec h2{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:14px 0 10px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.grid.cam{grid-template-columns:repeat(2,1fr)}
+button{font:inherit;color:var(--text);background:transparent;border:1px solid var(--line-2);border-radius:8px;padding:8px 6px;cursor:pointer;
+  font-size:12px;line-height:1.2;transition:border-color .15s,background .15s}
+button:hover{border-color:var(--muted)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ice);outline-offset:2px}
+button.on{background:var(--gold);border-color:var(--gold);color:#1a1204;font-weight:700}
+.fxbtn{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;min-height:52px}
+.fxbtn i{display:block;width:100%;height:4px;border-radius:2px}
+.row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:4px 10px;margin-bottom:10px}
+.row label{font-size:13px}
+.row output{font-family:var(--f-mono);font-size:12px;color:var(--gold);font-variant-numeric:tabular-nums}
+.row input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--gold);margin:0}
+.row input[type=text],.row select{grid-column:1/-1;width:100%;box-sizing:border-box;font:inherit;font-size:13px;color:var(--text);
+  background:var(--panel-solid);border:1px solid var(--line-2);border-radius:8px;padding:8px 10px}
+.checks{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px}
+.checks label{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer}
+.checks input{accent-color:var(--gold)}
+.calc{display:flex;flex-direction:column}
+.calc div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--line)}
+.calc div:last-child{border-bottom:0}
+.calc span{color:var(--muted);font-size:13px}
+.calc b{font-family:var(--f-mono);font-weight:600;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.calc div.key b{color:var(--gold)}
+.note{font-size:11.5px;line-height:1.5;color:var(--muted);margin:10px 0 0}
+[hidden]{display:none!important}
+.loading{position:fixed;inset:0;display:grid;place-items:center;color:var(--muted);font-size:13px;pointer-events:none}
+
+@media (max-width:760px){
+  .hud h1{font-size:22px}
+  .hud .sub{font-size:12px}
+  .hud .big b{font-size:17px}
+  .hint{display:none}
+  .panel{top:auto;left:16px;right:16px;width:auto;max-height:52%}
+  #toggle{display:inline-block;padding:6px 10px}
+  .panel.collapsed .panel-body .sec:not(.fx),.panel.collapsed .fx .row{display:none}
+}
+@media (prefers-reduced-motion:reduce){button{transition:none}}
+</style>
+
+<canvas id="view" aria-label="3D-модель ёлки 50 м с адресными пикселями"></canvas>
+<div class="loading" id="loading">Собираю ёлку…</div>
+
+<div class="hud">
+  <h1>Ёлка <span id="hH">50</span> м</h1>
+  <div class="sub">Реалистичная ель · адресные пиксели WS2811 12 мм · <span id="hFloors">≈16 этажей</span></div>
+  <div class="big">
+    <div><b id="hPix">—</b><small>пикселей</small></div>
+    <div><b id="hUni">—</b><small>юниверсов</small></div>
+    <div><b id="hPow">—</b><small>кВт рабочая</small></div>
+  </div>
+</div>
+<div class="hint">Мышь — вращать · колесо — приблизить · правая кнопка — сдвиг</div>
+
+<aside class="panel" id="panel">
+  <div class="panel-head"><span>Модель и расчёт</span><button id="toggle" type="button" aria-expanded="true">Свернуть</button></div>
+  <div class="panel-body">
+    <section class="sec fx">
+      <h2>Эффект</h2>
+      <div class="grid" id="fxGrid"></div>
+      <div class="row" style="margin-top:12px"><label for="speed">Скорость</label><output id="speedOut">1.0×</output><input type="range" id="speed" min="0.1" max="3" step="0.1" value="1"></div>
+      <div class="row"><label for="bright">Яркость</label><output id="brightOut">100%</output><input type="range" id="bright" min="0.2" max="1.6" step="0.05" value="1"></div>
+      <div class="row"><label for="text">Надпись для мэппинга</label><output>знаки ≈9 м</output><input type="text" id="text" value="2027" maxlength="40"></div>
+    </section>
+
+    <section class="sec">
+      <h2>Камера</h2>
+      <div class="grid cam" id="camGrid"></div>
+      <div class="checks">
+        <label><input type="checkbox" id="foliage" checked> Хвоя</label>
+        <label><input type="checkbox" id="wires"> Провода нитей</label>
+      </div>
+    </section>
+
+    <section class="sec">
+      <h2>Конструкция</h2>
+      <div class="row"><label for="pH">Высота со звездой</label><output id="pHOut"></output><input type="range" id="pH" min="30" max="60" step="1" value="50"></div>
+      <div class="row"><label for="pD">Диаметр нижнего яруса</label><output id="pDOut"></output><input type="range" id="pD" min="10" max="24" step="0.5" value="18"></div>
+      <div class="row"><label for="pTier">Шаг ярусов веток</label><output id="pTierOut"></output><input type="range" id="pTier" min="1" max="2.2" step="0.1" value="1.4"></div>
+      <div class="row"><label for="pPitch">Шаг пикселя в нити</label><output id="pPitchOut"></output><input type="range" id="pPitch" min="0.075" max="0.3" step="0.025" value="0.15"></div>
+      <div class="row"><label for="pZone">Пиксели на внешних</label><output id="pZoneOut"></output><input type="range" id="pZone" min="1" max="6" step="0.5" value="3"></div>
+      <div class="row"><label for="pQ">Качество хвои</label><output></output>
+        <select id="pQ"><option value="high">Высокое</option><option value="low">Экономное (телефон)</option></select></div>
+    </section>
+
+    <section class="sec">
+      <h2>Расчёт оборудования</h2>
+      <div class="calc" id="calc"></div>
+      <p class="note">Допущения: пиксель 12 мм, 12 В, ≈0,3 Вт на полном белом; рабочая нагрузка ≈35% от максимума.
+        Юниверс DMX = 170 RGB-пикселей. Порт WS2811 — до 680 пикселей при 40 кадр/с. Контроллер Art-Net/sACN на 16 портов.
+        Блок питания 12 В 400 Вт с загрузкой не выше 80%. Пиксели ставятся только на внешнюю часть веток — внутрь кроны их не видно.</p>
+    </section>
+  </div>
+</aside>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const $ = id => document.getElementById(id);
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const isNarrow = () => innerWidth <= 760;
+
+// ---------- параметры ----------
+const P = { H:50, D:18, tier:1.4, pitch:0.15, zone:3, quality: isNarrow() ? 'low' : 'high' };
+const STAR_R = 1.8;
+const FOG = new THREE.Color(0x070b16), FOG_D = 0.0032;
+
+// ---------- рендерер ----------
+const canvas = $('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, isNarrow() ? 1.5 : 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(FOG, FOG_D);
+const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 4000);
+camera.position.set(62, 20, 78);
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 23, 0);
+controls.enableDamping = true;
+controls.minDistance = 0.6;
+controls.maxDistance = 420;
+controls.maxPolarAngle = Math.PI * 0.515;
+controls.autoRotateSpeed = 0.35;
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.7, 0.5, 0.68);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+// ---------- общий блок шейдеров: эффекты пикселей ----------
+// Одна функция эффекта считает цвет и для пикселей, и для подсветки хвои/снега (fol=1 — усреднённый вид без мерцания отдельных диодов).
+const U = {
+  uTime:{value:0}, uBright:{value:1}, uMix:{value:0}, uFxA:{value:0}, uFxB:{value:0},
+  uH:{value:P.H}, uR0:{value:P.D/2}, uHmin:{value:2}, uHtop:{value:46}, uText:{value:null},
+  uBand:{value:new THREE.Vector2(0.25, 0.41)}, uTextK:{value:0.3}, uTextSpd:{value:0.02}, uSeam:{value:0.9},
+  uFogColor:{value:FOG}, uFogD:{value:FOG_D},
+};
+const FX_GLSL = /* glsl */`
+uniform float uTime, uBright, uMix, uH, uR0, uHmin, uHtop, uFogD;
+uniform int uFxA, uFxB;
+uniform sampler2D uText;
+uniform vec2 uBand;
+uniform float uTextK, uTextSpd, uSeam;
+uniform vec3 uFogColor;
+#define PI 3.14159265
+float h11(float n){ return fract(sin(n*12.9898)*43758.5453); }
+vec3 hsv(float h, float s, float v){
+  vec3 k = clamp(abs(mod(h*6.0 + vec3(0.,4.,2.), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+  return v * mix(vec3(1.0), k, s);
+}
+float prof(float y){ return uR0 * pow(max(0.0, 1.0 - (y - uHmin)/(uHtop - uHmin)), 0.92); }
+float fogF(vec3 wp){ float d = length(cameraPosition - wp) * uFogD; return 1.0 - exp(-d*d); }
+
+vec3 fx(int id, vec3 p, float rnd, float fol){
+  float t = uTime;
+  float hn = clamp(p.y / uH, 0.0, 1.0);
+  float a = atan(p.z, p.x);
+  vec3 c = vec3(0.0);
+  if(id == 0){ // тёплое мерцание
+    float tw = 0.55 + 0.45*sin(t*(1.3 + rnd*2.7) + rnd*80.0);
+    float sp = pow(max(0.0, sin(t*0.9*(0.6 + rnd) + rnd*300.0)), 60.0);
+    tw = mix(tw, 0.62, fol); sp *= 1.0 - fol;
+    c = vec3(1.0, 0.6, 0.26)*tw + vec3(1.0, 0.93, 0.8)*sp*2.4;
+  } else if(id == 1){ // разноцветные огни
+    float k = floor(rnd*5.0);
+    vec3 pc = k < 1.0 ? vec3(1.0,0.07,0.04) : k < 2.0 ? vec3(0.1,1.0,0.18) : k < 3.0 ? vec3(0.12,0.28,1.0) : k < 4.0 ? vec3(1.0,0.55,0.04) : vec3(0.9,0.1,0.8);
+    float tw = 0.75 + 0.25*sin(t*(0.8 + rnd) + rnd*50.0);
+    c = mix(pc*tw, vec3(0.62, 0.42, 0.44)*0.75, fol);
+  } else if(id == 2){ // спиральные ленты
+    float f = fract(a/(2.0*PI)*2.0 + hn*3.5 - t*0.3);
+    float red  = smoothstep(0.0, 0.03, f)*smoothstep(0.5, 0.47, f);
+    float gold = 1.0 - red;
+    c = vec3(1.0,0.04,0.02)*red*1.2 + vec3(1.0,0.62,0.22)*gold;
+  } else if(id == 3){ // радуга
+    c = hsv(fract(hn*1.3 + a/(2.0*PI)*0.25 - t*0.12), 0.95, 1.0);
+  } else if(id == 4){ // снегопад
+    c = vec3(0.02, 0.04, 0.11);
+    for(int L = 0; L < 2; L++){
+      float fl = float(L);
+      float K = L == 0 ? 90.0 : 140.0;
+      float bin = floor((a/(2.0*PI) + 0.5)*K + fl*0.5);
+      float v = 4.0 + h11(bin*1.7 + fl*9.0)*5.0;
+      float ph = h11(bin*3.1 + fl*5.0)*300.0;
+      float head = uH + 4.0 - mod(t*v + ph, uH + 12.0);
+      float d = p.y - head;
+      float tr = d >= 0.0 ? exp(-d*0.8) : exp(d*6.0);
+      c += vec3(0.85, 0.93, 1.0)*tr*1.5;
+    }
+  } else if(id == 5){ // волна от звезды
+    float d = length(p - vec3(0.0, uH - 1.8, 0.0));
+    float w = d/10.0 - t*0.45;
+    float f = fract(w), n = floor(w);
+    float ring = smoothstep(0.0, 0.08, f)*smoothstep(0.45, 0.12, f);
+    float hh = h11(n + 7.0);
+    vec3 pc = hh < 0.33 ? vec3(1.0,0.55,0.1) : hh < 0.66 ? vec3(0.2,0.7,1.0) : vec3(1.0,0.15,0.5);
+    c = pc*ring*1.4 + vec3(0.03, 0.02, 0.05);
+  } else if(id == 6){ // салют
+    c = vec3(0.025, 0.015, 0.03);
+    for(int i = 0; i < 8; i++){
+      float fi = float(i);
+      float tt = t/(2.2 + fi*0.19) + fi*0.37;
+      float ph = fract(tt), sd = floor(tt) + fi*17.0;
+      float y = mix(uHmin + 2.0, uHtop - 4.0, h11(sd*1.3));
+      float ang = h11(sd*2.1)*2.0*PI;
+      vec3 cen = vec3(cos(ang), 0.0, sin(ang))*prof(y)*0.9 + vec3(0.0, y, 0.0);
+      float R = 1.0 + ph*12.0;
+      float dd = length(p - cen);
+      float shell = exp(-abs(dd - R)*1.1)*pow(1.0 - ph, 1.3);
+      float glit = mix(step(0.55, fract(rnd*7.0 + t*3.0)), 0.5, fol);
+      float inside = step(dd, R)*pow(1.0 - ph, 2.0)*0.35*glit;
+      c += hsv(h11(sd*4.7), 0.85, 1.0)*(shell*3.0 + inside);
+    }
+  } else { // надпись: цилиндрическая проекция, шов развёртки на обратной стороне
+    float v = (hn - uBand.x)/(uBand.y - uBand.x);
+    float aa = mod(a - uSeam + PI, 2.0*PI) - PI;
+    float u = fract(-aa/(2.0*PI)*uTextK + t*uTextSpd);
+    vec3 bg = mix(vec3(0.02,0.05,0.18), vec3(0.10,0.02,0.12), hn);
+    bg += vec3(0.8,0.85,1.0)*pow(max(0.0, sin(t*1.3*(0.6 + rnd) + rnd*300.0)), 80.0)*(1.0 - fol);
+    float m = (v > 0.0 && v < 1.0) ? texture2D(uText, vec2(u, v)).r : 0.0;
+    c = mix(bg, vec3(1.0, 0.72, 0.3)*mix(1.4, 0.45, fol), m);
+  }
+  return c;
+}
+vec3 fxMix(vec3 p, float rnd, float fol){
+  vec3 a = fx(uFxA, p, rnd, fol);
+  if(uMix > 0.001) a = mix(a, fx(uFxB, p, rnd, fol), uMix);
+  return a*uBright;
+}
+`;
+
+// ---------- материалы ----------
+const pixelMat = new THREE.ShaderMaterial({
+  uniforms: { ...U, uSize:{value:0.075}, uScale:{value:800} },
+  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
+  vertexShader: FX_GLSL + /* glsl */`
+    uniform float uSize, uScale;
+    attribute float aRnd; attribute float aStar;
+    varying vec3 vCol; varying float vK;
+    void main(){
+      vec3 c = fxMix(position, aRnd, 0.0);
+      if(aStar > 0.5){
+        vec3 g = vec3(1.0, 0.74, 0.34)*(1.1 + 0.5*sin(uTime*2.0 + aRnd*40.0));
+        c = mix(c, g*uBright, 0.7);
+      }
+      vec4 mv = modelViewMatrix*vec4(position, 1.0);
+      // сдвиг к камере: пиксель висит поверх собственной ветки, но прячется за кроной
+      mv.xyz *= 1.0 - min(0.15, 0.5*length(mv.xyz))/length(mv.xyz);
+      float sz = uSize*uScale/(-mv.z);
+      float ps = max(sz, 1.7);
+      vK = clamp(pow(sz/ps, 1.2), 0.3, 1.0)*(1.0 - fogF(position));
+      vCol = c;
+      gl_PointSize = ps*2.6;
+      gl_Position = projectionMatrix*mv;
+    }`,
+  fragmentShader: /* glsl */`
+    varying vec3 vCol; varying float vK;
+    void main(){
+      vec2 q = gl_PointCoord*2.0 - 1.0; float d = dot(q, q);
+      if(d > 1.0) discard;
+      float core = smoothstep(0.16, 0.0, d);
+      float halo = exp(-d*6.0)*0.4;
+      gl_FragColor = vec4(vCol*(core*1.6 + halo)*vK, 1.0);
+    }`,
+});
+
+const wireMat = new THREE.LineBasicMaterial({ color:0x16241a, transparent:true, opacity:0.9 });
+
+function makeNeedleTexture(){
+  const W = 256, H = 128, cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  const R = mulberry(11);
+  g.lineCap = 'round';
+  g.strokeStyle = '#3a2a18'; g.lineWidth = 4;
+  g.beginPath(); g.moveTo(4, 64); g.quadraticCurveTo(128, 60, 250, 66); g.stroke();
+  for(let pass = 0; pass < 2; pass++){
+    for(let x = 6; x < 248; x += 2.2){
+      const taper = 1 - (x/256)*0.55;
+      for(const side of [-1, 1]){
+        const ang = (0.55 + R()*0.45)*side;
+        const len = (30 + R()*22)*taper*(pass ? 0.7 : 1);
+        const hue = 118 + R()*28, sat = 30 + R()*28, lig = (pass ? 26 : 16) + R()*16;
+        g.strokeStyle = `hsl(${hue} ${sat}% ${lig}%)`;
+        g.lineWidth = pass ? 1.6 : 2.4;
+        const y0 = 64 + (R() - 0.5)*3;
+        g.beginPath(); g.moveTo(x, y0);
+        g.lineTo(x + Math.cos(ang)*len*0.55, y0 + Math.sin(ang)*len);
+        g.stroke();
+      }
+    }
+  }
+  const tx = new THREE.CanvasTexture(cv);
+  tx.colorSpace = THREE.SRGBColorSpace;
+  tx.anisotropy = 4;
+  return tx;
+}
+
+const foliageMat = new THREE.ShaderMaterial({
+  uniforms: { ...U, uTex:{value:makeNeedleTexture()}, uAmb:{value:0.13} },
+  side: THREE.DoubleSide,
+  vertexShader: FX_GLSL + /* glsl */`
+    attribute vec3 iPos; attribute vec3 iDir; attribute vec3 iSide; attribute vec2 iSize; attribute float iGlow; attribute float iRnd;
+    varying vec2 vUv; varying vec3 vLight; varying float vShade; varying float vFog;
+    void main(){
+      vec3 wp = iPos + iDir*(position.x + 0.5)*iSize.x + iSide*position.y*iSize.y;
+      vec3 n = normalize(cross(iDir, iSide));
+      vLight = fxMix(iPos, iRnd, 1.0)*iGlow;
+      vShade = (0.45 + 0.55*abs(dot(n, normalize(vec3(-0.35, 0.85, 0.4)))))*(0.7 + 0.3*iRnd);
+      vUv = vec2(uv.x, iRnd > 0.5 ? 1.0 - uv.y : uv.y);
+      vFog = fogF(wp);
+      gl_Position = projectionMatrix*viewMatrix*vec4(wp, 1.0);
+    }`,
+  fragmentShader: /* glsl */`
+    uniform sampler2D uTex; uniform float uAmb; uniform vec3 uFogColor;
+    varying vec2 vUv; varying vec3 vLight; varying float vShade; varying float vFog;
+    void main(){
+      vec4 tx = texture2D(uTex, vUv);
+      if(tx.a < 0.35) discard;
+      vec3 col = tx.rgb*uAmb*vShade + tx.rgb*vLight*1.1 + vLight*0.06;
+      gl_FragColor = vec4(mix(col, uFogColor, vFog), 1.0);
+    }`,
+});
+
+// Тёмное ядро кроны: закрывает просветы между лапами и дальнюю сторону ели.
+const coreMat = new THREE.ShaderMaterial({
+  uniforms: U,
+  vertexShader: FX_GLSL + /* glsl */`
+    varying vec3 vLight; varying float vFog;
+    void main(){
+      vec4 wp = modelMatrix*vec4(position, 1.0);
+      vLight = fxMix(wp.xyz, 0.5, 1.0)*0.10;
+      vFog = fogF(wp.xyz);
+      gl_Position = projectionMatrix*viewMatrix*wp;
+    }`,
+  fragmentShader: /* glsl */`
+    uniform vec3 uFogColor; varying vec3 vLight; varying float vFog;
+    void main(){ gl_FragColor = vec4(mix(vec3(0.006, 0.016, 0.01) + vLight*0.5, uFogColor, vFog), 1.0); }`,
+});
+
+const groundMat = new THREE.ShaderMaterial({
+  uniforms: U,
+  vertexShader: FX_GLSL + /* glsl */`
+    varying vec3 vLight; varying vec3 vW; varying float vFog;
+    void main(){
+      vec4 wp = modelMatrix*vec4(position, 1.0);
+      float r = length(wp.xz);
+      vec2 dir = wp.xz/max(r, 0.001);
+      vec3 s = vec3(dir.x*prof(4.0)*0.9, 4.0, dir.y*prof(4.0)*0.9);
+      float fall = 1.4*exp(-max(0.0, r - uR0*0.7)/10.0) + 0.12*exp(-r/35.0);
+      vLight = fxMix(s, 0.5, 1.0)*fall;
+      vW = wp.xyz; vFog = fogF(wp.xyz);
+      gl_Position = projectionMatrix*viewMatrix*wp;
+    }`,
+  fragmentShader: /* glsl */`
+    uniform vec3 uFogColor;
+    varying vec3 vLight; varying vec3 vW; varying float vFog;
+    float hh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)))*43758.5453); }
+    void main(){
+      vec3 snow = vec3(0.016, 0.02, 0.034);
+      float sp = step(0.9965, hh(floor(vW.xz*9.0)))*0.5;
+      vec3 col = snow + vLight*0.3 + vec3(0.7, 0.8, 1.0)*sp*(0.06 + 0.5*length(vLight));
+      gl_FragColor = vec4(mix(col, uFogColor, vFog), 1.0);
+    }`,
+});
+
+// ---------- окружение: небо с Ала-Тоо, звёзды, площадь, город, люди ----------
+function mulberry(seed){
+  return function(){
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0)/4294967296;
+  };
+}
+
+const sky = new THREE.Mesh(new THREE.SphereGeometry(1800, 48, 24), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite:false, fog:false,
+  vertexShader: `varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */`
+    varying vec3 vD;
+    void main(){
+      float e = vD.y, az = atan(vD.z, vD.x);
+      vec3 zen = vec3(0.004, 0.008, 0.022), hor = vec3(0.03, 0.04, 0.075);
+      vec3 col = mix(hor, zen, smoothstep(0.0, 0.45, e));
+      col += vec3(0.07, 0.04, 0.02)*exp(-max(e, 0.0)*16.0);           // засветка города
+      // хребет Ала-Тоо на юге (-z)
+      float south = smoothstep(0.2, 0.9, -vD.z);
+      float mh = (0.018 + 0.028*(0.5 + 0.5*sin(az*9.0 + 1.3))*(0.6 + 0.4*sin(az*23.0)) + 0.012*sin(az*57.0))*south;
+      if(e < mh && e > -0.02){
+        float cap = smoothstep(mh - 0.012, mh - 0.002, e);
+        col = mix(vec3(0.022, 0.028, 0.045), vec3(0.075, 0.085, 0.11), cap);
+      }
+      gl_FragColor = vec4(col, 1.0);
+    }`,
+}));
+scene.add(sky);
+
+{ // звёзды
+  const R = mulberry(3), n = 2600, pos = new Float32Array(n*3);
+  for(let i = 0; i < n; i++){
+    const u = R()*2*Math.PI, v = 0.06 + R()*0.94, r = Math.sqrt(1 - v*v);
+    pos.set([Math.cos(u)*r*1500, v*1500, Math.sin(u)*r*1500], i*3);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color:0xb8c6e6, size:1.4, sizeAttenuation:false, fog:false, transparent:true, opacity:0.75 })));
+}
+
+{ // снег площади: полярная сетка, гуще у ели
+  const NR = 70, NA = 160, pos = [], idx = [];
+  for(let i = 0; i <= NR; i++){
+    const r = 0.3 + 520*Math.pow(i/NR, 2.3);
+    for(let j = 0; j < NA; j++){ const a = j/NA*2*Math.PI; pos.push(Math.cos(a)*r, 0, Math.sin(a)*r); }
+  }
+  for(let i = 0; i < NR; i++) for(let j = 0; j < NA; j++){
+    const a = i*NA + j, b = i*NA + (j + 1)%NA, c = a + NA, d = b + NA;
+    idx.push(a, b, c, b, d, c);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
+  scene.add(new THREE.Mesh(g, groundMat));
+}
+
+const cityMat = new THREE.ShaderMaterial({
+  uniforms: { uFogColor:U.uFogColor, uFogD:U.uFogD },
+  vertexShader: /* glsl */`
+    uniform float uFogD; varying vec3 vW; varying vec3 vN; varying float vFog; flat varying float vId;
+    void main(){
+      vec4 wp = modelMatrix*instanceMatrix*vec4(position, 1.0);
+      vW = wp.xyz; vN = normalize(mat3(modelMatrix*instanceMatrix)*normal); vId = float(gl_InstanceID);
+      float d = length(cameraPosition - wp.xyz)*uFogD*0.8; vFog = 1.0 - exp(-d*d);
+      gl_Position = projectionMatrix*viewMatrix*wp;
+    }`,
+  fragmentShader: /* glsl */`
+    uniform vec3 uFogColor; varying vec3 vW; varying vec3 vN; varying float vFog; flat varying float vId;
+    float hh(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7)))*43758.5453); }
+    void main(){
+      vec3 col = vec3(0.012, 0.015, 0.025);
+      if(abs(vN.y) < 0.5){
+        float along = abs(vN.x) > 0.5 ? vW.z : vW.x;
+        vec2 cell = vec2(along/3.2, vW.y/3.3);
+        vec2 f = fract(cell);
+        float lit = step(0.8, hh(vec3(floor(cell), vId)));
+        float win = step(0.25, f.x)*step(f.x, 0.75)*step(0.3, f.y)*step(f.y, 0.75)*step(2.0, vW.y);
+        vec3 wc = hh(vec3(floor(cell) + 3.0, vId)) > 0.3 ? vec3(1.0, 0.72, 0.4) : vec3(0.6, 0.75, 1.0);
+        col += wc*win*lit*0.3;
+      }
+      gl_FragColor = vec4(mix(col, uFogColor, vFog), 1.0);
+    }`,
+});
+{ // кварталы вокруг площади
+  const R = mulberry(5), n = 70, m = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), cityMat, n);
+  const o = new THREE.Object3D();
+  for(let i = 0; i < n; i++){
+    const a = i/n*2*Math.PI + R()*0.05, r = 280 + R()*170;
+    o.position.set(Math.cos(a)*r, 0, Math.sin(a)*r);
+    o.rotation.set(0, -a + (R() < 0.5 ? 0 : Math.PI/2), 0);
+    o.scale.set(18 + R()*30, 12 + R()*30, 14 + R()*16);
+    o.updateMatrix(); m.setMatrixAt(i, o.matrix);
+  }
+  scene.add(m);
+}
+
+const silMat = new THREE.MeshBasicMaterial({ color:0x04060a });
+{ // люди для масштаба (рост ≈1,75 м)
+  const R = mulberry(9), n = 70;
+  const body = new THREE.CapsuleGeometry(0.2, 1.0, 3, 8).translate(0, 0.7, 0);
+  const head = new THREE.SphereGeometry(0.12, 10, 8).translate(0, 1.62, 0);
+  const mb = new THREE.InstancedMesh(body, silMat, n), mh = new THREE.InstancedMesh(head, silMat, n);
+  const o = new THREE.Object3D();
+  for(let i = 0; i < n; i++){
+    const a = R()*2*Math.PI, r = 15 + Math.pow(R(), 0.7)*42, s = 0.85 + R()*0.22;
+    o.position.set(Math.cos(a)*r, 0, Math.sin(a)*r); o.scale.set(s, s, s); o.updateMatrix();
+    mb.setMatrixAt(i, o.matrix); mh.setMatrixAt(i, o.matrix);
+  }
+  scene.add(mb, mh);
+}
+
+// ограждение, подиум и ствол-мачта пересобираются вместе с елью
+const fenceGroup = new THREE.Group(); scene.add(fenceGroup);
+function buildFence(R0){
+  fenceGroup.clear();
+  const r = R0 + 3, n = Math.round(2*Math.PI*r/1.5);
+  const posts = new THREE.InstancedMesh(new THREE.BoxGeometry(0.07, 1.1, 0.07).translate(0, 0.55, 0), silMat, n);
+  const o = new THREE.Object3D();
+  for(let i = 0; i < n; i++){ const a = i/n*2*Math.PI; o.position.set(Math.cos(a)*r, 0, Math.sin(a)*r); o.updateMatrix(); posts.setMatrixAt(i, o.matrix); }
+  const rail = new THREE.Mesh(new THREE.TorusGeometry(r, 0.035, 4, 160).rotateX(Math.PI/2).translate(0, 1.08, 0), silMat);
+  const podium = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.9, 1.1, 8).translate(0, 0.55, 0), new THREE.MeshBasicMaterial({ color:0x0b0708 }));
+  fenceGroup.add(posts, rail, podium);
+}
+
+// ---------- генератор ели ----------
+const tree = new THREE.Group(); scene.add(tree);
+let pixelsObj = null, wiresObj = null, foliageObj = null, coreObj = null, starFrame = null;
+let tips = [];           // кончики веток: для камеры «макро»
+let stats = {};
+
+function build(){
+  const R = mulberry(7), Rf = mulberry(13);   // Rf — только хвоя, чтобы качество не меняло раскладку пикселей
+  const H = P.H, R0 = P.D/2, hMin = 2.0, hTop = H - 2*STAR_R + 0.5;
+  const dense = P.quality === 'high' ? 1 : 1.8;
+  U.uH.value = H; U.uR0.value = R0; U.uHmin.value = hMin; U.uHtop.value = hTop;
+  const prof = y => y < hMin ? 0 : R0*Math.pow(Math.max(0, 1 - (y - hMin)/(hTop - hMin)), 0.92)*(0.86 + 0.14*Math.min(1, (y - hMin)/4));
+
+  const px = [], pr = [], ps = [], wires = [];
+  const cP = [], cD = [], cS = [], cZ = [], cG = [], cR = [];
+  tips = [];
+  let branches = 0, tiers = 0;
+  const up = new THREE.Vector3(0, 1, 0), tmp = new THREE.Vector3(), side = new THREE.Vector3();
+
+  const glowAt = dt => { const g = Math.min(1, Math.max(0, 1.15 - dt/P.zone)); return 0.06 + 0.94*Math.pow(g, 1.3); };
+  function card(p, dir, len, wid, tilt, glow){
+    side.crossVectors(up, dir).normalize();
+    if(side.lengthSq() < 0.1) side.set(1, 0, 0);
+    side.applyAxisAngle(dir, tilt);
+    cP.push(p.x, p.y, p.z); cD.push(dir.x, dir.y, dir.z); cS.push(side.x, side.y, side.z);
+    cZ.push(len, wid); cG.push(glow); cR.push(Rf());
+  }
+  // пиксели вдоль полилинии с шагом pitch, по одной нити на полилинию
+  function lay(pts, from){
+    let acc = from, prev = null;
+    for(let i = 1; i < pts.length; i++){
+      const a = pts[i - 1], b = pts[i], seg = a.distanceTo(b);
+      while(acc <= seg){
+        tmp.lerpVectors(a, b, acc/seg);
+        const q = [tmp.x, tmp.y - 0.03, tmp.z];
+        px.push(...q); pr.push(R()); ps.push(0);
+        if(prev) wires.push(...prev, ...q);
+        prev = q; acc += P.pitch;
+      }
+      acc -= seg;
+    }
+  }
+
+  for(let y = hMin; y < hTop - 0.5; y += P.tier*(0.9 + 0.2*R())){
+    const L = prof(y);
+    if(L < 0.3) continue;
+    const n = Math.max(4, Math.round(2*Math.PI*L/1.05));
+    const off = tiers*2.39996;
+    const k = 0.55 - 0.35*(y - hMin)/(hTop - hMin);
+    const trunkR = 0.25 + 0.45*(1 - (y - hMin)/(hTop - hMin));
+    const sc = 0.55 + 0.45*Math.min(1, L/4);
+    for(let b = 0; b < n; b++){
+      const th = off + (b + (R() - 0.5)*0.5)/n*2*Math.PI;
+      const Lb = L*(0.85 + 0.25*R()), y0 = y + (R() - 0.5)*0.9*P.tier, sway = (R() - 0.5)*0.35, kb = k*(0.7 + 0.6*R());
+      const N = Math.max(4, Math.ceil((Lb - trunkR)/0.25));
+      const pts = [];
+      for(let i = 0; i <= N; i++){
+        const s = i/N, r = trunkR + (Lb - trunkR)*s, ang = th + sway*s*s;
+        pts.push(new THREE.Vector3(Math.cos(ang)*r, y0 + Lb*kb*(0.15*s - 1.3*s*s + 1.0*s*s*s), Math.sin(ang)*r));
+      }
+      const cum = [0];
+      for(let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + pts[i].distanceTo(pts[i - 1]));
+      const Lt = cum[cum.length - 1];
+      const at = (d, out, dir) => {
+        let i = 1; while(i < cum.length - 1 && cum[i] < d) i++;
+        const f = (d - cum[i - 1])/(cum[i] - cum[i - 1]);
+        out.lerpVectors(pts[i - 1], pts[i], Math.min(1, Math.max(0, f)));
+        if(dir) dir.subVectors(pts[i], pts[i - 1]).normalize();
+      };
+
+      // хвоя главной ветки
+      const p = new THREE.Vector3(), d = new THREE.Vector3();
+      for(let s = 0.3; s < Lt; s += 0.42*dense){
+        at(s, p, d);
+        const g = glowAt(Lt - s);
+        card(p, d, (1.1 + 0.4*Rf())*sc, 0.62*sc, (Rf() - 0.6)*0.8, g);
+        if(Rf() < 0.45) card(p, d, (0.9 + 0.3*Rf())*sc, 0.5*sc, -0.9 - Rf()*0.5, g);
+      }
+      // боковые веточки поочерёдно
+      let sgn = 1;
+      for(let s = 0.6; s < Lt - 0.15; s += 0.42*(0.85 + 0.3*R())){
+        at(s, p, d);
+        const dt = Lt - s;
+        const lb = Math.min(2.0, 0.25 + 0.45*dt)*(0.8 + 0.4*R())*Math.min(1, L/3 + 0.35);
+        side.crossVectors(up, d).normalize().multiplyScalar(sgn);
+        const bd = new THREE.Vector3().copy(d).multiplyScalar(0.75).addScaledVector(side, 0.65).addScaledVector(up, R()*0.15 - 0.05).normalize();
+        const bp = [];
+        for(let j = 0; j <= 4; j++){
+          const t = j/4;
+          bp.push(new THREE.Vector3().copy(p).addScaledVector(bd, lb*t).addScaledVector(up, -0.12*lb*t*t));
+        }
+        const bdir = new THREE.Vector3();
+        for(let j = 0; j < 4; j++){
+          if(dense > 1 && Rf() < 0.45) continue;
+          bdir.subVectors(bp[j + 1], bp[j]).normalize();
+          card(bp[j], bdir, lb/4 + 0.45*sc, 0.4*sc, (Rf() - 0.6)*1.0, glowAt(dt - lb*j/4));
+        }
+        if(dt < P.zone) lay(bp, P.pitch*0.5);
+        sgn = -sgn;
+      }
+      // пиксели на внешней части главной ветки
+      const from = Math.max(0.4, Lt - P.zone);
+      at(from, p, d);
+      const outer = [p.clone()];
+      for(let i = 0; i < pts.length; i++) if(cum[i] > from) outer.push(pts[i]);
+      lay(outer, 0);
+
+      tips.push({ p: pts[pts.length - 1].clone(), th, y });
+      branches++;
+    }
+    tiers++;
+  }
+  const treePixels = pr.length;
+
+  // звезда: две скрещённые пятиконечные, контур + внутренние контуры
+  const sc0 = new THREE.Vector3(0, H - STAR_R, 0);
+  const starShape = new THREE.Shape();
+  const starPts = [];
+  for(let i = 0; i <= 10; i++){
+    const a = Math.PI/2 + i/10*2*Math.PI, r = i%2 ? STAR_R*0.42 : STAR_R;
+    starPts.push([Math.cos(a)*r, Math.sin(a)*r]);
+  }
+  starPts.forEach(([x, y], i) => i ? starShape.lineTo(x, y) : starShape.moveTo(x, y));
+  for(const rot of [0, Math.PI/2]){
+    for(const k of [1, 0.72, 0.45, 0.2]){
+      const poly = starPts.map(([x, y]) => new THREE.Vector3(x*k, y*k, 0).applyAxisAngle(up, rot).add(sc0));
+      const start = pr.length;
+      lay(poly, 0);
+      for(let i = start; i < pr.length; i++) ps[i] = 1;
+    }
+  }
+  const starPixels = pr.length - treePixels;
+
+  // --- геометрия в сцену ---
+  for(const o of [pixelsObj, wiresObj, foliageObj, coreObj, starFrame]) if(o){ tree.remove(o); o.traverse(c => c.geometry?.dispose()); }
+
+  const pg = new THREE.BufferGeometry();
+  pg.setAttribute('position', new THREE.Float32BufferAttribute(px, 3));
+  pg.setAttribute('aRnd', new THREE.Float32BufferAttribute(pr, 1));
+  pg.setAttribute('aStar', new THREE.Float32BufferAttribute(ps, 1));
+  pixelsObj = new THREE.Points(pg, pixelMat); pixelsObj.frustumCulled = false; pixelsObj.renderOrder = 2;
+
+  const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(wires, 3));
+  wiresObj = new THREE.LineSegments(wg, wireMat); wiresObj.visible = $('wires').checked;
+
+  const plane = new THREE.PlaneGeometry(1, 1);
+  const fg = new THREE.InstancedBufferGeometry();
+  fg.index = plane.index; fg.setAttribute('position', plane.getAttribute('position')); fg.setAttribute('uv', plane.getAttribute('uv'));
+  fg.setAttribute('iPos', new THREE.InstancedBufferAttribute(new Float32Array(cP), 3));
+  fg.setAttribute('iDir', new THREE.InstancedBufferAttribute(new Float32Array(cD), 3));
+  fg.setAttribute('iSide', new THREE.InstancedBufferAttribute(new Float32Array(cS), 3));
+  fg.setAttribute('iSize', new THREE.InstancedBufferAttribute(new Float32Array(cZ), 2));
+  fg.setAttribute('iGlow', new THREE.InstancedBufferAttribute(new Float32Array(cG), 1));
+  fg.setAttribute('iRnd', new THREE.InstancedBufferAttribute(new Float32Array(cR), 1));
+  fg.instanceCount = cR.length;
+  foliageObj = new THREE.Mesh(fg, foliageMat); foliageObj.frustumCulled = false;
+
+  const lathe = [];
+  for(let i = 0; i <= 60; i++){ const y = hMin - 0.4 + (hTop - hMin + 0.4)*i/60; lathe.push(new THREE.Vector2(Math.max(0.05, prof(y)*0.72), y)); }
+  lathe.push(new THREE.Vector2(0, hTop + 0.3));
+  coreObj = new THREE.Mesh(new THREE.LatheGeometry(lathe, 48), coreMat);
+  const trunk = new THREE.CylinderGeometry(0.25, 0.7, hTop, 10).translate(0, hTop/2, 0);
+  coreObj.add(new THREE.Mesh(trunk, coreMat));
+
+  const sg = new THREE.ExtrudeGeometry(starShape, { depth:0.12, bevelEnabled:false }).translate(0, 0, -0.06);
+  starFrame = new THREE.Group();
+  for(const rot of [0, Math.PI/2]){
+    const m = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ color:0x2a1d08 }));
+    m.rotation.y = rot; m.position.copy(sc0); starFrame.add(m);
+  }
+
+  const showFol = $('foliage').checked;
+  foliageObj.visible = coreObj.visible = showFol;
+  tree.add(coreObj, foliageObj, wiresObj, pixelsObj, starFrame);
+  buildFence(R0);
+
+  stats = { pixels: pr.length, treePixels, starPixels, branches, tiers, cards: cR.length, cable: pr.length*P.pitch };
+}
+
+// ---------- надпись: canvas → текстура для цилиндрической проекции ----------
+const textCv = document.createElement('canvas');
+const TEXT_BAND_M = 16, TEXT_PX_H = 256;
+function drawText(){
+  const str = ($('text').value.trim() || '2027') + ' · ';
+  const g = textCv.getContext('2d');
+  let fs = 200;
+  g.font = `700 ${fs}px Unbounded, Manrope, sans-serif`;
+  let w = Math.ceil(g.measureText(str).width);
+  if(w > 4096){ fs = Math.floor(fs*4096/w); w = 4096; }
+  textCv.width = w; textCv.height = TEXT_PX_H;
+  g.fillStyle = '#000'; g.fillRect(0, 0, w, TEXT_PX_H);
+  g.font = `700 ${fs}px Unbounded, Manrope, sans-serif`;
+  g.fillStyle = '#fff'; g.textBaseline = 'middle';
+  g.fillText(str, 0, TEXT_PX_H/2 + fs*0.04);
+  // размер canvas меняется вместе с текстом — текстуру пересоздаём, а не обновляем
+  U.uText.value?.dispose();
+  const tx = new THREE.CanvasTexture(textCv);
+  tx.wrapS = THREE.RepeatWrapping; tx.minFilter = THREE.LinearFilter; tx.generateMipmaps = false;
+  U.uText.value = tx;
+  fitText();
+}
+function fitText(){
+  const yc = P.H*0.32, pxPerM = TEXT_PX_H/TEXT_BAND_M;
+  const R0 = P.D/2, hMin = 2, hTop = P.H - 2*STAR_R + 0.5;
+  const C = 2*Math.PI*R0*Math.pow(Math.max(0, 1 - (yc - hMin)/(hTop - hMin)), 0.92);
+  const texM = textCv.width/pxPerM;
+  U.uBand.value.set((yc - TEXT_BAND_M/2)/P.H, (yc + TEXT_BAND_M/2)/P.H);
+  // короткая надпись укладывается целое число раз — без шва; длинная бежит строкой со швом сзади
+  const n = C/texM;
+  U.uTextK.value = n >= 0.75 ? Math.max(1, Math.round(n)) : n;
+  U.uTextSpd.value = 2.5/texM;       // бегущая строка ≈2,5 м/с
+}
+
+// ---------- эффекты ----------
+const FX = [
+  ['Тёплое мерцание', 'linear-gradient(90deg,#ff9f3f,#ffe7c2,#ffb458)'],
+  ['Разноцветные', 'linear-gradient(90deg,#ff2a1a 0 20%,#22e04a 20% 40%,#2c52ff 40% 60%,#ff9a12 60% 80%,#e21ad0 80%)'],
+  ['Спирали', 'repeating-linear-gradient(90deg,#ff1a0e 0 8px,#fff 8px 10px,#ffa21f 10px 18px,#fff 18px 20px)'],
+  ['Радуга', 'linear-gradient(90deg,#f33,#fb3,#3f6,#3cf,#63f,#f3c)'],
+  ['Снегопад', 'linear-gradient(90deg,#0b1633,#dff0ff 60%,#0b1633)'],
+  ['Волна от звезды', 'linear-gradient(90deg,#ff8c1a,#33b5ff,#ff2a80)'],
+  ['Салют', 'radial-gradient(circle at 30% 50%,#ffd84a 0 3px,transparent 4px),radial-gradient(circle at 70% 50%,#ff3fa0 0 3px,transparent 4px),#1a0f22'],
+  ['Надпись', 'linear-gradient(90deg,#0a1a4a,#ffc15a 45% 55%,#0a1a4a)'],
+  ['Шоу-режим', 'linear-gradient(90deg,#ff9f3f,#ff1a0e,#3f6,#3cf,#ff2a80,#ffc15a)'],
+];
+const fx = { target:0, show:false, showT:0, fading:false };
+const fxBtns = FX.map(([name, grad], i) => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'fxbtn'; b.id = 'fx' + i;
+  b.innerHTML = `<i style="background:${grad}"></i>${name}`;
+  b.onclick = () => pickFx(i);
+  $('fxGrid').append(b);
+  return b;
+});
+function startFade(i){
+  if(i === fx.target && !fx.fading) return;
+  if(fx.fading) U.uFxA.value = U.uFxB.value;
+  U.uFxB.value = i; U.uMix.value = 0; fx.fading = true; fx.target = i;
+}
+function pickFx(i){
+  fx.show = i === 8; fx.showT = 0;
+  if(fx.show) startFade((fx.target + 1)%8); else startFade(i);
+  fxBtns.forEach((b, k) => b.classList.toggle('on', k === i));
+}
+
+// ---------- камеры ----------
+const CAMS = [['Общий план', 'wide'], ['Глазами зрителя', 'eye'], ['Облёт', 'orbit'], ['Макро ветки', 'macro']];
+let tween = null;
+const camBtns = CAMS.map(([name, key]) => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.id = 'cam-' + key; b.textContent = name;
+  b.onclick = () => setCam(key);
+  $('camGrid').append(b);
+  return b;
+});
+function flyTo(pos, tgt, dur = 1.6){
+  tween = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos, t1: tgt, k: 0, dur };
+}
+function setCam(key){
+  camBtns.forEach((b, i) => b.classList.toggle('on', CAMS[i][1] === key));
+  controls.autoRotate = false;
+  const H = P.H, az = Math.atan2(camera.position.z, camera.position.x);
+  const dist = H*1.75 + P.D*0.8;
+  if(key === 'wide') flyTo(new THREE.Vector3(Math.cos(az)*dist, H*0.36, Math.sin(az)*dist), new THREE.Vector3(0, H*0.46, 0));
+  if(key === 'eye') flyTo(new THREE.Vector3(Math.cos(az)*(P.D/2 + 30), 1.7, Math.sin(az)*(P.D/2 + 30)), new THREE.Vector3(0, H*0.45, 0));
+  if(key === 'orbit'){
+    flyTo(new THREE.Vector3(Math.cos(az)*dist*1.05, H*0.5, Math.sin(az)*dist*1.05), new THREE.Vector3(0, H*0.44, 0));
+    tween.then = () => { controls.autoRotate = !reduceMotion; };
+  }
+  if(key === 'macro'){
+    const yWant = H*0.2;
+    let best = null, bs = Infinity;
+    for(const t of tips){
+      const da = Math.abs(Math.atan2(Math.sin(t.th - az), Math.cos(t.th - az)));
+      const s = da*6 + Math.abs(t.y - yWant);
+      if(s < bs){ bs = s; best = t; }
+    }
+    if(!best) return;
+    const o = new THREE.Vector3(Math.cos(best.th), 0, Math.sin(best.th));
+    const tg = new THREE.Vector3(-o.z, 0, o.x);
+    flyTo(best.p.clone().addScaledVector(o, 2.3).addScaledVector(tg, 1.1).add(new THREE.Vector3(0, 0.7, 0)),
+          best.p.clone().addScaledVector(o, -0.9), 2.2);
+    $('wires').checked = true; wiresObj.visible = true;
+  }
+}
+controls.addEventListener('start', () => {
+  tween = null;
+  if(controls.autoRotate){ controls.autoRotate = false; camBtns.forEach(b => b.classList.remove('on')); }
+});
+
+// ---------- расчёт ----------
+const nf = new Intl.NumberFormat('ru-RU', { maximumFractionDigits:0 });
+const nf1 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits:1 });
+function renderCalc(){
+  const n = stats.pixels;
+  const uni = Math.ceil(n/170), ports = Math.ceil(n/680), ctrl = Math.ceil(ports/16);
+  const pMax = n*0.3/1000, pWork = pMax*0.35, psu = Math.ceil(n*0.3/320);
+  const cable = stats.cable >= 1000 ? nf1.format(stats.cable/1000) + ' км' : nf.format(stats.cable) + ' м';
+  const rows = [
+    ['Пикселей всего', nf.format(n), true],
+    ['из них на звезде', nf.format(stats.starPixels)],
+    ['Ярусов / веток', `${stats.tiers} / ${nf.format(stats.branches)}`],
+    ['Нитей по 50 пикселей', nf.format(Math.ceil(n/50))],
+    ['Длина пиксельных нитей', cable],
+    ['Юниверсов DMX', nf.format(uni), true],
+    ['Портов контроллера', nf.format(ports)],
+    ['Контроллеров на 16 портов', nf.format(ctrl), true],
+    ['Мощность макс. (белый 100%)', nf1.format(pMax) + ' кВт'],
+    ['Мощность рабочая', nf1.format(pWork) + ' кВт', true],
+    ['Ток по 12 В на максимуме', nf.format(n*0.3/12) + ' А'],
+    ['Блоков питания 12 В / 400 Вт', nf.format(psu)],
+  ];
+  $('calc').innerHTML = rows.map(([k, v, key]) => `<div${key ? ' class="key"' : ''}><span>${k}</span><b>${v}</b></div>`).join('');
+  $('hPix').textContent = nf.format(n);
+  $('hUni').textContent = nf.format(uni);
+  $('hPow').textContent = nf1.format(pWork);
+  $('hH').textContent = P.H;
+  $('hFloors').textContent = `≈${Math.round(P.H/3)} этажей`;
+}
+
+// ---------- панель ----------
+const fmt = {
+  pH: v => v + ' м', pD: v => nf1.format(v) + ' м', pTier: v => nf1.format(v) + ' м',
+  pPitch: v => nf1.format(v*100) + ' см', pZone: v => nf1.format(v) + ' м ветки',
+};
+const key = { pH:'H', pD:'D', pTier:'tier', pPitch:'pitch', pZone:'zone' };
+let rebuildTimer = 0;
+function scheduleRebuild(){
+  clearTimeout(rebuildTimer);
+  rebuildTimer = setTimeout(() => { build(); fitText(); renderCalc(); }, 180);
+}
+for(const id of Object.keys(key)){
+  const el = $(id), out = $(id + 'Out');
+  out.textContent = fmt[id](+el.value);
+  el.addEventListener('input', () => { P[key[id]] = +el.value; out.textContent = fmt[id](+el.value); scheduleRebuild(); });
+}
+$('pQ').value = P.quality;
+$('pQ').addEventListener('change', e => { P.quality = e.target.value; scheduleRebuild(); });
+$('speed').addEventListener('input', e => { $('speedOut').textContent = nf1.format(+e.target.value) + '×'; });
+$('bright').addEventListener('input', e => { U.uBright.value = +e.target.value; $('brightOut').textContent = Math.round(e.target.value*100) + '%'; });
+$('text').addEventListener('input', drawText);
+$('foliage').addEventListener('change', e => { foliageObj.visible = coreObj.visible = e.target.checked; });
+$('wires').addEventListener('change', e => { wiresObj.visible = e.target.checked; });
+const panel = $('panel');
+$('toggle').addEventListener('click', () => {
+  const c = panel.classList.toggle('collapsed');
+  $('toggle').textContent = c ? 'Все настройки' : 'Свернуть';
+  $('toggle').setAttribute('aria-expanded', String(!c));
+  resize();
+});
+if(isNarrow()){ panel.classList.add('collapsed'); $('toggle').textContent = 'Все настройки'; $('toggle').setAttribute('aria-expanded', 'false'); }
+if(reduceMotion){ $('speed').value = 0.5; }
+$('speedOut').textContent = nf1.format(+$('speed').value) + '×';
+
+// ---------- размер и цикл ----------
+function resize(){
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+  composer.setPixelRatio(renderer.getPixelRatio());
+  composer.setSize(w, h);
+  camera.aspect = w/h;
+  // на телефоне панель внизу: поднимаем кадр, чтобы ёлка не пряталась под ней
+  if(isNarrow()) camera.setViewOffset(w, h, 0, panel.offsetHeight*0.45, w, h); else camera.clearViewOffset();
+  camera.updateProjectionMatrix();
+  pixelMat.uniforms.uScale.value = h*renderer.getPixelRatio()/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)));
+}
+addEventListener('resize', resize);
+
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(0.1, (now - last)/1000); last = now;
+  U.uTime.value += dt*(+$('speed').value);
+  if(fx.fading){
+    U.uMix.value = Math.min(1, U.uMix.value + dt/1.3);
+    if(U.uMix.value >= 1){ U.uFxA.value = U.uFxB.value; U.uMix.value = 0; fx.fading = false; }
+  }
+  if(fx.show && (fx.showT += dt) > 11){ fx.showT = 0; startFade((fx.target + 1)%8); }
+  if(tween){
+    tween.k = Math.min(1, tween.k + dt/tween.dur);
+    const e = tween.k < 0.5 ? 4*tween.k**3 : 1 - Math.pow(-2*tween.k + 2, 3)/2;
+    camera.position.lerpVectors(tween.p0, tween.p1, e);
+    controls.target.lerpVectors(tween.t0, tween.t1, e);
+    if(tween.k >= 1){ const then = tween.then; tween = null; then?.(); }
+  }
+  controls.update(dt);
+  composer.render();
+  requestAnimationFrame(frame);
+}
+
+build();
+drawText();
+document.fonts?.load('700 200px Unbounded').then(drawText).catch(() => {});
+renderCalc();
+resize();
+pickFx(0);
+camBtns[0].classList.add('on');
+$('loading').hidden = true;
+requestAnimationFrame(frame);
+</script>
+</html>
